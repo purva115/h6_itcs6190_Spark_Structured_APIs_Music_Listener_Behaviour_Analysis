@@ -1,103 +1,136 @@
-# Document Similarity Analysis with Hadoop MapReduce
+# Music Listener Behavior Analysis with Spark Structured API
 
 ## Overview
-Compute Jaccard similarity between text documents from a collection using Hadoop MapReduce framework. The project provides insights into document relationships, text overlap, and content similarity patterns across multiple documents.
+
+Analyze user listening habits and music trends from a fictional streaming platform using PySpark. This project provides insights into genre preferences, song popularity, and listener engagement through scalable data processing with Spark Structured APIs.
 
 ## Dataset Description
-Three input files are used with varying sizes:
-- **dataset1_1000words.txt**: Contains approximately 1000 words across multiple documents (document_id, document_text).
-- **dataset2_3000words.txt**: Contains approximately 3000 words across multiple documents (document_id, document_text).
-- **dataset3_5000words.txt**: Contains approximately 5000 words across multiple documents (document_id, document_text).
+
+Two CSV files are used:
+
+* **listening\_logs.csv** — Contains user listening activity with columns: `user_id`, `song_id`, `timestamp`, `duration_sec`.
+* **songs\_metadata.csv** — Contains song details with columns: `song_id`, `title`, `artist`, `genre`, `mood`.
+
+> Tip: For realistic testing, include at least 1,000 listening log records and 50+ unique songs in `songs_metadata.csv`.
 
 ## Repository Structure
+
 ```
-├── src/
-│   └── main/
-│       └── java/
-│           └── DocumentSimilarity.java    # Main MapReduce implementation
-├── pom.xml                               # Maven configuration
-├── docker-compose.yml                    # Hadoop cluster setup
-├── README.md                            # Project documentation
-├── datasets/
-│   ├── dataset1_1000words.txt          # Small dataset
-│   ├── dataset2_3000words.txt          # Medium dataset
-│   └── dataset3_5000words.txt          # Large dataset
-└── results/
-    ├── 3nodes/
-    │   ├── dataset1_output/
-    │   ├── dataset2_output/
-    │   └── dataset3_output/
-    └── 1node/
-        ├── dataset1_output/
-        ├── dataset2_output/
-        └── dataset3_output/
+├── datagen.py                # Generates sample datasets
+├── main.py                   # Main analysis script
+├── requirements.txt          # Python dependencies
+├── README.md                 # Project documentation
+├── listening_logs.csv        # User listening activity
+├── songs_metadata.csv        # Song details and metadata
+└── outputs/
+    ├── user_favorite_genres/
+    ├── avg_listen_time_per_song/
+    ├── genre_loyalty_scores/
+    └── night_owl_users/
 ```
 
 ## Output Directory Structure
+
 ```
-results/
-├── 3nodes/
-│   ├── dataset1_output/
-│   ├── dataset2_output/
-│   └── dataset3_output/
-└── 1node/
-    ├── dataset1_output/
-    ├── dataset2_output/
-    └── dataset3_output/
+outputs/
+├── user_favorite_genres/
+├── avg_listen_time_per_song/
+├── genre_loyalty_scores/
+└── night_owl_users/
 ```
 
 ## Tasks and Outputs
-1. **Document Preprocessing**: Converts text to lowercase and removes punctuation for consistent processing. Output: Clean word sets per document.
-2. **Pair Generation**: Creates all possible document pairs for similarity comparison. Output: Document pair combinations.
-3. **Jaccard Calculation**: Computes similarity scores using intersection over union formula. Output: `results/[nodes]/dataset[X]_output/`
-4. **Performance Analysis**: Compares execution times between 3-node and 1-node cluster configurations. Output: Timing comparisons in README.
+
+1. **User's Favourite Genre**: Identifies each user's most listened-to genre. Output: `outputs/user_favorite_genres/` (CSV per partition).
+2. **Average Listen Time Per Song**: Calculates average play duration for each song. Output: `outputs/avg_listen_time_per_song/`.
+3. **Genre Loyalty Score**: Computes the fraction of each user's plays that are from their favorite genre and flags users above a loyalty threshold. Output: `outputs/genre_loyalty_scores/`.
+4. **Night Owl Users**: Detects users active between 12 AM and 5 AM (local time). Output: `outputs/night_owl_users/`.
 
 ## Execution Instructions
-1. Install Java and Maven:
+
+1. Install Python and PySpark (prefer a virtual environment):
+
    ```bash
-   mvn clean compile package
+   pip install pyspark
    ```
-2. Start Hadoop cluster with 3 data nodes:
+2. Place `listening_logs.csv` and `songs_metadata.csv` in the project directory.
+3. Run the analysis:
+
    ```bash
-   docker-compose up -d
+   python main.py
    ```
-3. Run the analysis for each dataset:
-   ```bash
-   docker exec -it namenode hadoop jar target/document-similarity-1.0.jar DocumentSimilarity /input/dataset1_1000words.txt /output/dataset1_3nodes
-   ```
-4. Find results in the `results/` folder after copying from HDFS.
+4. Results will be saved as CSV files in the `outputs/` folder.
 
 ## Analysis Workflow
-1. **Load Data**: Read document files into HDFS and process line by line.
-2. **Prepare Data**: Extract document IDs and clean text content in Mapper phase.
+
+1. **Load Data**: Read both CSV files into Spark DataFrames using `spark.read.csv(..., header=True, inferSchema=True)`.
+2. **Prepare Data**: Parse timestamps to Spark `TimestampType`, extract hour of day, and join listening logs with song metadata on `song_id`.
 3. **Run Analysis**:
-   - Generate unique word sets for each document
-   - Create all possible document pair combinations
-   - Calculate Jaccard similarity for each pair
-   - Format output with similarity scores
-4. **Save Results**: Each dataset's output is saved in respective directories under `results/`.
+
+   * Determine each user's favorite genre by counting plays per genre and selecting the highest.
+   * Calculate average listen time per song using `groupBy(song_id)` and `avg(duration_sec)`.
+   * Compute genre loyalty scores: for each user, `loyalty = plays_in_favorite_genre / total_plays`. Filter by a configurable threshold (e.g., `0.5`).
+   * Identify night owl users: filter play records where the hour is between 0 and 4 (inclusive) and list users with >= 1 play in that window (or use a minimum-play threshold).
+4. **Save Results**: Write each DataFrame to CSV with `df.coalesce(1).write.mode("overwrite").csv(output_path, header=True)` (coalesce optional depending on dataset size).
 
 ## Errors and Resolutions
-**Memory Management Issues:**
-Large datasets caused OutOfMemory errors during processing. This was resolved by optimizing data structures and using HashSet for efficient word storage. Additionally, proper HDFS directory cleanup between runs prevented conflicts.
 
-**Docker Container Communication:**
-Initial setup had inter-container networking issues. Verified docker-compose.yml configuration and ensured proper container linking resolved connectivity problems between namenode and datanodes.
+**Loyalty Score Output Issue:**
+If the genre loyalty score output is empty when using a strict threshold (e.g., `0.8`), it likely means the test dataset does not contain users with such concentrated listening patterns. Lowering the threshold to something like `0.5` or adjusting the minimum-play filter often yields meaningful results. Always inspect intermediate counts (e.g., per-user total plays) to set an appropriate threshold.
 
-## Performance Comparison
+## Implementation Notes
 
-| Dataset | 3 Data Nodes | 1 Data Node | Performance Difference |
-|---------|-------------|-------------|----------------------|
-| Dataset 1 (1K words) | [X] seconds | [Y] seconds | [Y-X] seconds slower |
-| Dataset 2 (3K words) | [X] seconds | [Y] seconds | [Y-X] seconds slower |
-| Dataset 3 (5K words) | [X] seconds | [Y] seconds | [Y-X] seconds slower |
+* Use Spark functions (`from pyspark.sql.functions import col, hour, avg, row_number, desc`) and window functions to compute rankings per user.
+* Consider handling duplicate or very short listen events (e.g., `duration_sec < 5`) by filtering them out as noise.
+* If timestamps are in UTC and you want local-time analysis, convert timezones before extracting the hour.
+
+## Example `main.py` (outline)
+
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, hour, avg, count, row_number
+from pyspark.sql.window import Window
+
+spark = SparkSession.builder.appName("MusicAnalysis").getOrCreate()
+
+# Load
+logs = spark.read.csv("listening_logs.csv", header=True, inferSchema=True)
+songs = spark.read.csv("songs_metadata.csv", header=True, inferSchema=True)
+
+# Prepare
+logs = logs.withColumn("ts", col("timestamp").cast("timestamp")).withColumn("hour", hour(col("ts")))
+joined = logs.join(songs, on="song_id", how="left")
+
+# User favorite genre
+genre_counts = joined.groupBy("user_id", "genre").count()
+window = Window.partitionBy("user_id").orderBy(desc("count"))
+user_fav = genre_counts.withColumn("rn", row_number().over(window)).filter(col("rn") == 1).select("user_id", "genre")
+user_fav.write.mode("overwrite").csv("outputs/user_favorite_genres", header=True)
+
+# Average listen time per song
+avg_time = joined.groupBy("song_id", "title", "artist").agg(avg("duration_sec").alias("avg_duration_sec"))
+avg_time.write.mode("overwrite").csv("outputs/avg_listen_time_per_song", header=True)
+
+# Genre loyalty score (example threshold 0.5)
+user_total = joined.groupBy("user_id").count().withColumnRenamed("count", "total_plays")
+fav_with_counts = genre_counts.join(user_fav, ["user_id", "genre"]).select("user_id", "count")
+fav_with_counts = fav_with_counts.withColumnRenamed("count", "fav_plays")
+loyalty = fav_with_counts.join(user_total, "user_id").withColumn("loyalty", col("fav_plays") / col("total_plays"))
+loyalty.filter(col("loyalty") >= 0.5).write.mode("overwrite").csv("outputs/genre_loyalty_scores", header=True)
+
+# Night owl users
+night_plays = joined.filter(col("hour").between(0, 4))
+night_users = night_plays.groupBy("user_id").count().filter(col("count") >= 1).select("user_id")
+night_users.write.mode("overwrite").csv("outputs/night_owl_users", header=True)
+
+spark.stop()
+```
 
 ## Notes
-- The analysis processes at least 1000, 3000, and 5000 words across different dataset sizes.
-- All code, datasets, and outputs are included in this repository.
-- The project structure and output formatting follow assignment guidelines.
-- Codespaces environment maintained active as per requirements.
 
-## Author
-Purva Jagtap
-ITCS 6190/8190, Fall 2025
+* The example code is an outline; adapt it to your schema, data quality constraints, and cluster resources.
+* For large datasets, avoid `.coalesce(1)` to prevent driver overload; write partitioned outputs instead.
+
+---
+
+*Generated README for the Music Listener Behavior Analysis project.*
