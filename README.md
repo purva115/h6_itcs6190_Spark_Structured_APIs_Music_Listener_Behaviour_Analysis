@@ -1,198 +1,103 @@
-Music Streaming Analysis Using Spark Structured APIs
-Overview
-This project analyzes user listening behavior and music trends using Apache Spark Structured APIs. The analysis processes structured data from a fictional music streaming platform to gain insights into genre preferences, song popularity, and listener engagement patterns.
-Course: ITCS 6190/8190 - Cloud Computing for Data Analysis, Fall 2025
-Instructor: Marco Vieira
-Dataset Description
-The project utilizes two primary datasets:
-1. listening_logs.csv
-Contains user listening activity logs with the following structure:
+# Document Similarity Analysis with Hadoop MapReduce
 
-user_id: Unique identifier for each user
-song_id: Unique identifier for each song
-timestamp: Date and time when the song was played (format: YYYY-MM-DD HH:MM:SS)
-duration_sec: Duration in seconds for which the song was played
+## Overview
+Compute Jaccard similarity between text documents from a collection using Hadoop MapReduce framework. The project provides insights into document relationships, text overlap, and content similarity patterns across multiple documents.
 
-2. songs_metadata.csv
-Contains metadata about songs with the following structure:
+## Dataset Description
+Three input files are used with varying sizes:
+- **dataset1_1000words.txt**: Contains approximately 1000 words across multiple documents (document_id, document_text).
+- **dataset2_3000words.txt**: Contains approximately 3000 words across multiple documents (document_id, document_text).
+- **dataset3_5000words.txt**: Contains approximately 5000 words across multiple documents (document_id, document_text).
 
-song_id: Unique identifier for each song
-title: Title of the song
-artist: Name of the artist
-genre: Genre classification (e.g., Pop, Rock, Jazz)
-mood: Mood category (e.g., Happy, Sad, Energetic, Chill)
+## Repository Structure
+```
+├── src/
+│   └── main/
+│       └── java/
+│           └── DocumentSimilarity.java    # Main MapReduce implementation
+├── pom.xml                               # Maven configuration
+├── docker-compose.yml                    # Hadoop cluster setup
+├── README.md                            # Project documentation
+├── datasets/
+│   ├── dataset1_1000words.txt          # Small dataset
+│   ├── dataset2_3000words.txt          # Medium dataset
+│   └── dataset3_5000words.txt          # Large dataset
+└── results/
+    ├── 3nodes/
+    │   ├── dataset1_output/
+    │   ├── dataset2_output/
+    │   └── dataset3_output/
+    └── 1node/
+        ├── dataset1_output/
+        ├── dataset2_output/
+        └── dataset3_output/
+```
 
-Repository Structure
-├── README.md
-├── main.py                     # Main analysis script
-├── input_generator.py          # Data generation script
-├── inputs/
-│   ├── listening_logs.csv      # User listening logs
-│   └── songs_metadata.csv      # Song metadata
-└── outputs/
-    ├── user_favorite_genres/
-    ├── avg_listen_time_per_song/
-    ├── genre_loyalty_scores/
-    └── night_owl_users/
-Output Directory Structure
-outputs/
-├── user_favorite_genres/       # Each user's most listened-to genre
-├── avg_listen_time_per_song/   # Average listening duration per song
-├── genre_loyalty_scores/       # Users with loyalty score > 0.8
-└── night_owl_users/           # Users active between 12 AM - 5 AM
-Tasks and Outputs
-Task 1: User Favorite Genres
+## Output Directory Structure
+```
+results/
+├── 3nodes/
+│   ├── dataset1_output/
+│   ├── dataset2_output/
+│   └── dataset3_output/
+└── 1node/
+    ├── dataset1_output/
+    ├── dataset2_output/
+    └── dataset3_output/
+```
 
-Objective: Identify the most listened-to genre for each user
-Method: Count song plays per genre for each user
-Output: CSV file with user_id and their favorite genre
+## Tasks and Outputs
+1. **Document Preprocessing**: Converts text to lowercase and removes punctuation for consistent processing. Output: Clean word sets per document.
+2. **Pair Generation**: Creates all possible document pairs for similarity comparison. Output: Document pair combinations.
+3. **Jaccard Calculation**: Computes similarity scores using intersection over union formula. Output: `results/[nodes]/dataset[X]_output/`
+4. **Performance Analysis**: Compares execution times between 3-node and 1-node cluster configurations. Output: Timing comparisons in README.
 
-Task 2: Average Listen Time Per Song
+## Execution Instructions
+1. Install Java and Maven:
+   ```bash
+   mvn clean compile package
+   ```
+2. Start Hadoop cluster with 3 data nodes:
+   ```bash
+   docker-compose up -d
+   ```
+3. Run the analysis for each dataset:
+   ```bash
+   docker exec -it namenode hadoop jar target/document-similarity-1.0.jar DocumentSimilarity /input/dataset1_1000words.txt /output/dataset1_3nodes
+   ```
+4. Find results in the `results/` folder after copying from HDFS.
 
-Objective: Calculate average listening duration for each song
-Method: Compute mean duration across all plays for each song
-Output: CSV file with song_id and average listen time
+## Analysis Workflow
+1. **Load Data**: Read document files into HDFS and process line by line.
+2. **Prepare Data**: Extract document IDs and clean text content in Mapper phase.
+3. **Run Analysis**:
+   - Generate unique word sets for each document
+   - Create all possible document pair combinations
+   - Calculate Jaccard similarity for each pair
+   - Format output with similarity scores
+4. **Save Results**: Each dataset's output is saved in respective directories under `results/`.
 
-Task 3: Genre Loyalty Score
+## Errors and Resolutions
+**Memory Management Issues:**
+Large datasets caused OutOfMemory errors during processing. This was resolved by optimizing data structures and using HashSet for efficient word storage. Additionally, proper HDFS directory cleanup between runs prevented conflicts.
 
-Objective: Calculate loyalty score for users (proportion of plays in favorite genre)
-Method: Filter users with loyalty score > 0.8
-Output: CSV file with users and their loyalty scores
+**Docker Container Communication:**
+Initial setup had inter-container networking issues. Verified docker-compose.yml configuration and ensured proper container linking resolved connectivity problems between namenode and datanodes.
 
-Task 4: Night Owl Users
+## Performance Comparison
 
-Objective: Identify users who listen to music between 12 AM and 5 AM
-Method: Filter listening logs by timestamp range
-Output: CSV file with users active during late night hours
+| Dataset | 3 Data Nodes | 1 Data Node | Performance Difference |
+|---------|-------------|-------------|----------------------|
+| Dataset 1 (1K words) | [X] seconds | [Y] seconds | [Y-X] seconds slower |
+| Dataset 2 (3K words) | [X] seconds | [Y] seconds | [Y-X] seconds slower |
+| Dataset 3 (5K words) | [X] seconds | [Y] seconds | [Y-X] seconds slower |
 
-Execution Instructions
-Prerequisites
-Before starting the assignment, ensure you have the following software installed and properly configured on your machine:
+## Notes
+- The analysis processes at least 1000, 3000, and 5000 words across different dataset sizes.
+- All code, datasets, and outputs are included in this repository.
+- The project structure and output formatting follow assignment guidelines.
+- Codespaces environment maintained active as per requirements.
 
-Python 3.x:
-
-Download and Install Python
-Verify installation:
-
-
-
-bash     python3 --version
-
-PySpark:
-
-Install using pip:
-
-
-
-bash     pip install pyspark
-
-Apache Spark:
-
-Ensure Spark is installed. You can download it from the Apache Spark Downloads page.
-Verify installation by running:
-
-
-
-bash     spark-submit --version
-Running the Analysis Tasks
-Running Locally
-
-Generate the Input Data:
-
-bash   python3 input_generator.py
-
-Execute the Analysis:
-
-bash   spark-submit main.py
-or
-bash   python3 main.py
-
-Verify the Outputs:
-Check the outputs/ directory for the resulting files:
-
-bash   ls outputs/
-Alternative Execution Methods
-Using Jupyter Notebook (if using .ipynb format):
-bashjupyter notebook main.ipynb
-Using GitHub Codespaces:
-
-Open the repository in GitHub Codespaces
-Install dependencies:
-
-bash   pip install pyspark
-
-Run the analysis script
-
-Implementation Approach
-Data Loading and Preparation
-
-Utilized Spark's spark.read.csv() to load datasets
-Applied appropriate schemas and handled null values
-Ensured data quality and consistency
-
-Data Analysis Techniques
-
-Filtering: Applied time-based filters for night owl analysis
-Aggregation: Used groupBy operations for genre counting and averaging
-Joins: Combined listening logs with song metadata
-Transformations: Applied window functions and calculations for loyalty scores
-
-Performance Considerations
-
-Optimized join operations using appropriate broadcast hints
-Utilized Spark's lazy evaluation for efficient processing
-Implemented proper partitioning strategies for large datasets
-
-Results Summary
-Key Findings
-
-Genre Distribution: Analysis of user preferences across different music genres
-Listening Patterns: Identification of peak listening times and user behavior
-User Segmentation: Classification of users based on loyalty and listening habits
-Engagement Metrics: Average listening durations and genre preferences
-
-Data Quality
-
-Dataset contains a minimum of 100 records as required
-All output files are properly formatted and saved in CSV format
-Results are validated for accuracy and completeness
-
-Errors and Resolutions
-Common Issues and Solutions
-
-Import Errors:
-
-   Error: No module named 'pyspark'
-   Solution: pip install pyspark
-
-Spark Context Issues:
-
-   Error: Cannot call methods on a stopped SparkContext
-   Solution: Ensure proper SparkSession initialization and cleanup
-
-File Path Issues:
-
-   Error: Path does not exist
-   Solution: Verify input file paths and create output directories
-
-Memory Issues:
-
-   Error: OutOfMemoryError
-   Solution: Adjust Spark configuration for memory allocation
-Technologies Used
-
-Apache Spark: Distributed data processing framework
-PySpark: Python API for Spark
-Python: Primary programming language
-CSV: Data format for input and output files
-
-Assignment Submission
-This project fulfills the requirements for Hands-on L6: Spark Structured APIs assignment including:
-
-✅ Complete analysis of user listening behavior
-✅ Implementation using Spark Structured APIs
-✅ Proper output file generation in required format
-✅ Well-structured repository with all required files
-✅ Comprehensive README documentation
-✅ Dataset with minimum 100 records
-
+## Author
+Purva Jagtap
+ITCS 6190/8190, Fall 2025
